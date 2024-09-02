@@ -1,0 +1,8 @@
+
+/* This folder is not the Server folders , The server folders is in lib folder outside app folder*/
+
+/* one folder contains extra configurations for (uploadthing) , following the lib docs */
+
+/* other folder contains webhooks for clerk , using clerk for auth part was straight forward , done in (auth) folder,
+   but using other services from clerk like organizations (used for groups/communities) events, will require extra configurations,
+   and webhooks can be useful for it, check this webhook file as there's articles talks about it in details */
