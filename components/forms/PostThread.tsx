@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 
 import { ThreadValidation } from "@/lib/validations";       //get (Thread form validation) from Zod file we created 
 import { createThread } from "@/lib/server_actions/thread.actions";
-import { useOrganization } from "@clerk/nextjs";
 import { usePathname, useRouter } from "next/navigation";
+import { useOrganization } from "@clerk/nextjs";               //clerk hook to get organization/community data  
+
 
 
 //Typescript interface for received props types
@@ -24,7 +25,7 @@ function PostThread({ userId }: Props) {
   const router = useRouter();                    //get router function to push for another route auto
   const pathname = usePathname();                //get pathname function , to get current URL
 
-  const { organization } = useOrganization();    //get data of current organization from clerk, Organization group users together and manage their permissions.
+  const { organization } = useOrganization();    //get data of current organization/community from clerk, Organization group users together and manage their permissions.
 
   //shadcn form docs, useForm from react-hook-form to apply the zod validation we imported , also giving default values to the inputs
   const form = useForm<z.infer<typeof ThreadValidation>>({
@@ -41,7 +42,7 @@ function PostThread({ userId }: Props) {
     await createThread({
       text: values.thread,
       author: userId,
-      communityId: organization ? organization.id : null,
+      communityId: organization ? organization.id : null,    //if post is from community account, get community id, we got from clerk's useOrganization()
       path: pathname,
     });
 

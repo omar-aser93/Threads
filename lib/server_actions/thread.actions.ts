@@ -54,7 +54,7 @@ export async function createThread({ text, author, communityId, path }: Params) 
   try {
     connectToDB();                 //using this function with every server action  to connect manually because we're not using express.js to connect 1 time
     
-    //get a single Community using: findeOne(id)
+    //get a single Community DB_id using: findeOne(community_clerk_id)
     const communityIdObject = await Community.findOne({ id: communityId }, { _id: 1 });
     //create a Thread using: create({received data})
     const createdThread = await Thread.create({ text, author, community: communityIdObject }); // Assign communityId if provided, or leave it null for personal account
@@ -74,26 +74,24 @@ export async function createThread({ text, author, communityId, path }: Params) 
 
 
 
- async function fetchAllChildThreads(threadId: string): Promise<any[]> {
-  const childThreads = await Thread.find({ parentId: threadId });
+/**************** deleteThread Controller/Server_Action  ****************/
 
+//function used to get the comments & the comments of the comments
+async function fetchAllChildThreads(threadId: string): Promise<any[]> {
+  const childThreads = await Thread.find({ parentId: threadId });
   const descendantThreads = [];
   for (const childThread of childThreads) {
     const descendants = await fetchAllChildThreads(childThread._id);
     descendantThreads.push(childThread, ...descendants);
   }
-
   return descendantThreads;
 } 
 
-
-
-/**************** deleteThread Controller/Server_Action  ****************/
 export async function deleteThread(id: string, path: string): Promise<void> {
   try {    
     connectToDB();                //using this function with every server action  to connect manually because we're not using express.js to connect 1 time
 
-    //Find the main thread to be deleted using: findById(id).populate() : return the actual models in relation with the current Thread, like [include()] in prisma)
+    //get the main thread to be deleted using: findById(id).populate() : return the actual models in relation with the current Thread, like [include()] in prisma)
     const mainThread = await Thread.findById(id).populate("author community");
     if (!mainThread) { throw new Error("Thread not found"); }          //if no thread found => "not found"
     
@@ -103,6 +101,9 @@ export async function deleteThread(id: string, path: string): Promise<void> {
 
     // Get all descendant thread IDs including [the main thread ID , child thread IDs by mapping through them]
     const descendantThreadIds = [ id, ...descendantThreads.map((thread) => thread._id) ];
+
+    //Recursively delete child threads and their descendants
+    await Thread.deleteMany({ _id: { $in: descendantThreadIds } });
 
     // Extract the authorIds and communityIds to update User and Community models respectively
     const uniqueAuthorIds = new Set(
@@ -119,20 +120,11 @@ export async function deleteThread(id: string, path: string): Promise<void> {
       ].filter((id) => id !== undefined)
     );
 
-    // Recursively delete child threads and their descendants
-    await Thread.deleteMany({ _id: { $in: descendantThreadIds } });
-
     // Update User model
-    await User.updateMany(
-      { _id: { $in: Array.from(uniqueAuthorIds) } },
-      { $pull: { threads: { $in: descendantThreadIds } } }
-    );
+    await User.updateMany({ _id: { $in: Array.from(uniqueAuthorIds) }}, { $pull: { threads: { $in: descendantThreadIds } }} );
 
     // Update Community model
-    await Community.updateMany(
-      { _id: { $in: Array.from(uniqueCommunityIds) } },
-      { $pull: { threads: { $in: descendantThreadIds } } }
-    );
+    await Community.updateMany({ _id: { $in: Array.from(uniqueCommunityIds) }}, { $pull: { threads: { $in: descendantThreadIds } }} );
 
     revalidatePath(path);          //revalidate & update data, remove cached data for this path & return freshly fetched data on your next visit
   } catch (error: any) {
